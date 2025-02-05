@@ -6,8 +6,6 @@ name = "pypi"
 [packages]
 numpy = "*"
 pandas = "*"
-matplotlib = "*"
-seaborn = "*"
 scikit-learn = "*"
 pydantic = "*"
 openai = "*"

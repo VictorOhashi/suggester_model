@@ -1,19 +1,26 @@
+from enum import Enum
+from typing import List
 from pydantic import BaseModel, Field
 
-from typing import List
-
 class RouteSpec(BaseModel):
-    id: str = Field(..., description="Route ID (format UUID)")
-    path: str = Field(..., description="Route path (hierarchical route, ex: '/pedidos/historico')")
-    tags: List[str] = Field(..., description="Route tags (related to the actual function)")
-    last_date: str = Field(..., description="Last date of the route (format YYYY-MM-DD)")
+    id: str = Field(..., description="Route ID")
+    path: str = Field(..., description="Route path")
+    tags: List[str] = Field(..., description="Route tags")
+
+class SessionIntentType(str, Enum):
+    SEARCH = "search"
+    NAVIGATION = "navigation"
+
+class SessionIntentSpec(BaseModel):
+    type: SessionIntentType = Field(..., description="Intent type")
+    context: str = Field(..., description="User intention context")
 
 class SessionSpec(BaseModel):
-    id: str = Field(..., description="Session ID (format UUID)")
-    route_id: str = Field(..., description="Route ID (reference to routes[].id)")
-    last_date: str = Field(..., description="Last date of the session (format YYYY-MM-DD)")
-    time_spent: int = Field(..., description="Time spent in the session (5-60 minutes in milliseconds)")
-    intention_context: str = Field(..., description="User intention")
+    id: str = Field(..., description="Session ID")
+    route_id: str = Field(..., description="Route ID")
+    last_date: str = Field(..., description="Last date that the route was accessed (yyyy-mm-dd)")
+    time_spent: int = Field(..., description="Time spent in the session in milliseconds")
+    intention: SessionIntentSpec = Field(..., description="User intention")
 
 class NavigationContext(BaseModel):
     routes: List[RouteSpec] = Field(..., description="Routes")

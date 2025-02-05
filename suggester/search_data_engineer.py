@@ -25,21 +25,29 @@ class SearchDataEngineer:
         self._config = config
         self._client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url).beta
 
-    async def _generate_data(self, route_context: str, route_count: int) -> NavigationContext:
+    async def _generate_data(self, route_context: str, route_count: int, session_count: int) -> NavigationContext:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the route data, you must follow the following rules:
-            - Each route must have a unique id and path
+            - Each route must have a unique id and path.
             - Route path must mock a real route in the system, it can be base or a nested path.
-            - For some routes, you must generate a session for that route.
-
-            You must follow the following rules when generating the data:
-            - Each session must have a unique id and reference to the route id
-            - A session should mock a real user navigation in the system.
-            - The session intention_context should mock a user search intention based on that route.
+            - Each route must have a list of tags that must be a mix of the route function and the route path.
+            - For each route, you must generate at least 5 tags up to 10 tags.
+            To generate the session data, you must follow the following rules:
+            - Each session must have a unique id and reference to the route id.
+            - Each session must have an intention with a type and a context.
+            - Each route can have multiple sessions, with different intention and time_spent.
+            - The session time_spent should be a random number between 5 minutes and 1 hour in milliseconds.
+            To generate the intention data, you must follow the following rules:
+            - The intention type must be one of the following: "search", "navigation".
+            - If the intention type is "search", the context should mock a user search intention based on that route.
+            - If the intention type is "navigation", the context should mock a user action of navigation. Like clicking on a link or a button.
         """
 
-        user_context = f"Generate {route_count} routes for a {route_context}."
+        user_context = (
+            f"Generate {route_count} routes for a {route_context}."
+            f"Should generate at least {session_count} sessions."
+        )
 
         messages = [
             {"role": "system", "content": system_context},
@@ -69,11 +77,11 @@ class SearchDataEngineer:
         except json.JSONDecodeError:
             return None
 
-    async def generate_data(self, route_context: str, route_count: int) -> Tuple[List[RouteSpec], List[SessionSpec]]:
+    async def generate_data(self, route_context: str, route_count: int, session_count: int) -> Tuple[List[RouteSpec], List[SessionSpec]]:
         if cached_data := await self._get_cached_data():
             return cached_data.routes, cached_data.sessions
 
-        data = await self._generate_data(route_context, route_count)
+        data = await self._generate_data(route_context, route_count, session_count)
         self._save_cache(data)
         return data.routes, data.sessions
 

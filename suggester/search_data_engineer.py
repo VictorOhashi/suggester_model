@@ -6,8 +6,8 @@ from .route_specs import  NavigationContext
 class SearchConfig:
     def __init__(self,
                  api_key: str,
+                 model: str,
                  base_url: str | None = None,
-                 model: str = "gpt-4o-mini",
                  cache_dir: str = "./cache",
                  temperature: float = 0.7,
                  max_tokens: int | None = None

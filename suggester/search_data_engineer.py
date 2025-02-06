@@ -1,8 +1,7 @@
 import os
 import json
-from typing import List, Tuple
 from openai import AsyncOpenAI
-from .route_specs import RouteSpec, SessionSpec, NavigationContext
+from .route_specs import  NavigationContext
 
 class SearchConfig:
     def __init__(self,
@@ -25,7 +24,12 @@ class SearchDataEngineer:
         self._config = config
         self._client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url).beta
 
-    async def _generate_data(self, route_context: str, route_count: int, session_count: int) -> NavigationContext:
+    async def _generate_data(
+            self,
+            route_context: str,
+            route_count: int,
+            session_count: int
+            ) -> NavigationContext:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the route data, you must follow the following rules:
@@ -64,8 +68,8 @@ class SearchDataEngineer:
 
         return response.choices[0].message.parsed
 
-    async def _get_cached_data(self) -> NavigationContext | None:
-        cache_file = os.path.join(self._config.cache_dir, "navigation_context.json")
+    async def _get_cached_data(self, cache_name: str) -> NavigationContext | None:
+        cache_file = os.path.join(self._config.cache_dir, f"{cache_name}.json")
 
         if not os.path.exists(cache_file):
             return None
@@ -77,18 +81,20 @@ class SearchDataEngineer:
         except json.JSONDecodeError:
             return None
 
-    async def generate_data(self, route_context: str, route_count: int, session_count: int) -> Tuple[List[RouteSpec], List[SessionSpec]]:
-        if cached_data := await self._get_cached_data():
-            return cached_data.routes, cached_data.sessions
-
-        data = await self._generate_data(route_context, route_count, session_count)
-        self._save_cache(data)
-        return data.routes, data.sessions
-
-    def _save_cache(self, data: NavigationContext):
-        cache_file = os.path.join(self._config.cache_dir, "navigation_context.json")
+    def _save_cache(self, cache_name: str, data: NavigationContext):
+        cache_file = os.path.join(self._config.cache_dir, f"{cache_name}.json")
         os.makedirs(self._config.cache_dir, exist_ok=True)
 
         json_data = data.model_dump()
         with open(cache_file, "w") as f:
             json.dump(json_data, f)
+
+    async def generate_data(self, route_context: str, route_count: int, session_count: int) -> NavigationContext:
+        cache_name =  "_".join(route_context.lower().strip().split())
+        if cached_data := await self._get_cached_data(cache_name):
+            return cached_data
+
+        data = await self._generate_data(route_context, route_count, session_count)
+        self._save_cache(cache_name, data)
+
+        return data

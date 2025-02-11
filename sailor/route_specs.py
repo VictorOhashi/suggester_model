@@ -19,7 +19,6 @@ class SessionSpec(BaseModel):
     id: str = Field(..., description="Session ID")
     route_id: str = Field(..., description="Route ID")
     last_date: str = Field(..., description="Last date that the route was accessed (yyyy-mm-dd)")
-    time_spent: int = Field(..., description="Time spent in the session in milliseconds")
     intention: SessionIntentSpec = Field(..., description="User intention")
 
 class NavigationContext(BaseModel):

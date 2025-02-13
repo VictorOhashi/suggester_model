@@ -1,0 +1,23 @@
+[project]
+name = "sailor"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "VictorOhashi",email = "victor.ohashi@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic (>=2.10.6,<3.0.0)",
+    "numpy (>=2.2.2,<3.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "openai (>=1.62.0,<2.0.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)",
+    "ipykernel (>=6.29.5,<7.0.0)",
+    "python-dotenv (>=1.0.1,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

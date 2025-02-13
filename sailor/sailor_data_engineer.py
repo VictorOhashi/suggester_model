@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Iterable
 from openai import AsyncOpenAI
 from .route_specs import  NavigationContext
 
@@ -29,7 +30,7 @@ class SailorDataEngineer:
             route_context: str,
             route_count: int,
             session_count: int
-            ) -> NavigationContext:
+            ) -> NavigationContext | None:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the route data, you must follow the following rules:
@@ -59,7 +60,7 @@ class SailorDataEngineer:
 
         response = await self._client.chat.completions.parse(
             model=self._config.model,
-            messages=messages,
+            messages=messages, # type: ignore
             temperature=self._config.temperature,
             max_tokens=self._config.max_tokens,
             response_format=NavigationContext
@@ -91,13 +92,14 @@ class SailorDataEngineer:
             cache_key: str,
             route_count: int = 10,
             session_count: int = 60
-            ) -> NavigationContext:
+            ) -> NavigationContext | None:
         cache_file = os.path.join(self._config.cache_dir, f"{cache_key}.json")
 
         if cached_data := await self._get_cached_data(cache_file):
             return cached_data
 
         data = await self._generate_data(route_context, route_count, session_count)
-        self._save_cache(cache_file, data)
+        if data:
+            self._save_cache(cache_file, data)
 
         return data

@@ -31,8 +31,8 @@ class RouteContext(BaseModel):
         self.context = f"{self.context} {session.intention.context}"
 
 class RouteVectorizer:
-    def __init__(self, max_features: int = 1000):
-      self._vectorizer = TfidfVectorizer(max_features=max_features, stop_words='english')
+    def __init__(self, min_df: int = 2, max_df: float = 0.8, max_features: int = 1000):
+      self._vectorizer = TfidfVectorizer(max_features=max_features, stop_words='english', min_df=min_df, max_df=max_df)
       self.route_vectors = None
       self.label_encoder = LabelEncoder()
       self.label_encoded = None

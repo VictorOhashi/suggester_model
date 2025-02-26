@@ -1,23 +1,12 @@
-from ast import Tuple
 import numpy as np
 from typing import List
 
 from sklearn.calibration import LinearSVC
 from sklearn.metrics.pairwise import cosine_similarity
-from sailor.route_vectorizer import RouteContext, RouteVectorizer
-from .route_specs import NavigationContext, RouteSpec, SessionSpec
-from .sailor_engine import SailorEngine
-
-class VectorSailorEngine(SailorEngine):
-  def __init__(self, routes: List[RouteSpec]):
-    super().__init__(routes)
-    self.vectorizer = RouteVectorizer()
-
-  def train(self, sessions: List[SessionSpec]):
-    self.train_context = NavigationContext(routes=self.routes, sessions=sessions)
-    return self.vectorizer.fit(self.train_context)
-
-  def predict(self, query: str) -> List[tuple[RouteContext, float]]: ...
+from sklearn.neighbors import KNeighborsClassifier
+from sailor.route_vectorizer import RouteContext
+from .route_specs import RouteSpec, SessionSpec
+from .sailor_engine import VectorSailorEngine
 
 class TfidfSailorEngine(VectorSailorEngine):
   def predict(self, query: str) -> List[tuple[RouteContext, float]]:
@@ -26,39 +15,40 @@ class TfidfSailorEngine(VectorSailorEngine):
         return []
 
     scores = cosine_similarity(query_vec, self.vectorizer.route_vectors).flatten()
-    sorted_indices = np.argsort(scores)[::-1]
-
-    scored_routes: List[tuple[RouteContext, float]] = []
-    for i in sorted_indices:
-        route = self.vectorizer.inverse_transform(i)
-        if route is not None:
-          scored_routes.append((route, float(scores[i])))
-
-    return scored_routes
+    return self.scored_routes(scores)
 
 class SVCSailorEngine(VectorSailorEngine):
-  def __init__(self, routes: List[RouteSpec]):
-    super().__init__(routes)
+  def __init__(self):
+    super().__init__()
     self.model = LinearSVC(class_weight="balanced", max_iter=2000)
 
-  def train(self, sessions: List[SessionSpec]):
-    route_vectors, labels = super().train(sessions)
+  def train(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
+    route_vectors, labels = super().train(routes, sessions)
     self.model.fit(route_vectors, labels)
 
-  def predict(self, query: str) -> List[tuple[RouteContext, float]]:
+  def predict(self, query: str):
     query_vec = self.vectorizer.transform(query)
     if query_vec is None:
         return []
 
     scores = self.model.decision_function(query_vec)[0]
     scores = 1 / (1 + np.exp(-scores))
+    return self.scored_routes(scores)
 
-    sorted_indices = np.argsort(scores)[::-1]
+class KNNSailorEngine(VectorSailorEngine):
+  def __init__(self):
+    super().__init__()
+    self.model = KNeighborsClassifier(weights='distance', algorithm='brute', n_neighbors=5)
 
-    scored_routes: List[tuple[RouteContext, float]] = []
-    for i in sorted_indices:
-        route = self.vectorizer.inverse_transform(i)
-        if route is not None:
-          scored_routes.append((route, float(scores[i])))
+  def train(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
+    route_vectors, labels = super().train(routes, sessions)
+    self.model.fit(route_vectors, labels)
 
-    return scored_routes
+  def predict(self, query: str):
+    query_vec = self.vectorizer.transform(query)
+    if query_vec is None:
+        return []
+
+    scores = self.model.predict_proba(query_vec)[0]
+    return self.scored_routes(scores)
+

@@ -6,16 +6,16 @@ from sklearn.model_selection import train_test_split
 from sailor import VectorSailorEngine, NavigationContext, SessionSpec, RouteGenConfig, SailorDataEngineer
 
 class VectorTestEngine:
-  def __init__(self, engine: VectorSailorEngine):
+  def __init__(self, engine: VectorSailorEngine, key: str = "vector_test"):
     _config = RouteGenConfig.fromEnv()
-    self._engineer = SailorDataEngineer(_config)
+    self._engineer = SailorDataEngineer(_config, cache_key=key)
     self.engine = engine
     self.route_context: Optional[NavigationContext] = None
     self.train_sessions: List[SessionSpec] = []
     self.test_sessions: List[SessionSpec] = []
 
-  async def build(self, context: str, cache_key: str):
-    _route_context = await self._engineer.generate_data(route_context=context, cache_key=cache_key)
+  async def build(self, context: str):
+    _route_context = await self._engineer.generate_data(route_context=context)
     if _route_context is None:
       raise ValueError("No data generated")
 

@@ -28,7 +28,3 @@ class SessionSpec(BaseModel):
     @property
     def target(self):
         return self.route_id
-
-class NavigationContext(BaseModel):
-    routes: List[RouteSpec] = Field(..., description="Routes")
-    sessions: List[SessionSpec] = Field(..., description="Sessions")

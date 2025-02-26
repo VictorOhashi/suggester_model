@@ -1,8 +1,10 @@
 import os
 import json
-from typing import Iterable
-from openai import AsyncOpenAI
-from .route_specs import  NavigationContext
+from typing import List, Optional
+from openai import AsyncOpenAI, BaseModel
+
+from sailor.route_specs import RouteSpec, SessionSpec
+from .route_context import NavigationContext
 
 class RouteGenConfig:
     def __init__(self,
@@ -28,18 +30,19 @@ class RouteGenConfig:
             base_url=os.getenv("AI_MODEL_URL"),
             cache_dir=dir)
 
+class RouteResponse(BaseModel):
+    routes: List[RouteSpec]
+
+class SessionResponse(BaseModel):
+    sessions: List[SessionSpec]
 
 class SailorDataEngineer:
-    def __init__(self, config: RouteGenConfig):
+    def __init__(self, config: RouteGenConfig, cache_key: str):
         self._config = config
         self._client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url).beta
+        self._cache_key = cache_key
 
-    async def _generate_data(
-            self,
-            route_context: str,
-            route_count: int,
-            session_count: int
-            ) -> NavigationContext | None:
+    async def _generate_routes(self, context: str, count: int) -> RouteResponse | None:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the route data, you must follow the following rules:
@@ -47,6 +50,50 @@ class SailorDataEngineer:
             - Route path must mock a real route in the system, it can be base or a nested path.
             - Each route must have a list of tags that must be a mix of the route function and the route path.
             - For each route, you must generate at least 5 tags up to 10 tags.
+        """
+
+        user_context = f"Generate {count} routes for a {context}."
+
+        messages = [
+            {"role": "system", "content": system_context},
+            {"role": "user", "content": user_context}
+        ]
+
+        response = await self._client.chat.completions.parse(
+            model=self._config.model,
+            messages=messages, # type: ignore
+            temperature=self._config.temperature,
+            max_tokens=self._config.max_tokens,
+            response_format=RouteResponse
+        )
+
+        return response.choices[0].message.parsed
+
+    async def _get_routes(self, context: str, count: int) -> List[RouteSpec]:
+        cache_file = os.path.join(self._config.cache_dir, f"{self._cache_key}_routes.json")
+        routes: Optional[RouteResponse] = None
+
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    data = json.load(f)
+                    routes = RouteResponse(**data)
+                    return routes.routes
+            except json.JSONDecodeError:
+                pass
+
+        routes = await self._generate_routes(context, count)
+        if routes is None:
+            raise ValueError("No routes generated")
+
+        with open(cache_file, "w") as f:
+            json.dump(routes.model_dump(), f)
+
+        return routes.routes
+
+    async def _generate_sessions(self, context: RouteSpec, count: int) -> SessionResponse | None:
+        system_context = """
+            Act as a UX data synthesis specialist for complex administrative systems.
             To generate the session data, you must follow the following rules:
             - Each session must have a unique id and reference to the route id.
             - Each session must have an intention with a type and a context.
@@ -58,8 +105,8 @@ class SailorDataEngineer:
         """
 
         user_context = (
-            f"Generate {route_count} routes for a {route_context}."
-            f"Should generate at least {session_count} sessions."
+            f"Generate {count} sessions for the given route:"
+            f"ID: {context.id}, Path: {context.path}, Tags: {', '.join(context.tags)}"
         )
 
         messages = [
@@ -72,43 +119,47 @@ class SailorDataEngineer:
             messages=messages, # type: ignore
             temperature=self._config.temperature,
             max_tokens=self._config.max_tokens,
-            response_format=NavigationContext
+            response_format=SessionResponse
         )
 
         return response.choices[0].message.parsed
 
-    async def _get_cached_data(self, cache_file: str) -> NavigationContext | None:
-        if not os.path.exists(cache_file):
-            return None
+    async def _get_sessions(self, context: List[RouteSpec], count: int) -> List[SessionSpec]:
+        cache_file = os.path.join(self._config.cache_dir, f"{self._cache_key}_sessions.json")
+        sessions: Optional[SessionResponse] = None
 
-        try:
-            with open(cache_file, "r") as f:
-                data = json.load(f)
-            return NavigationContext(**data)
-        except json.JSONDecodeError:
-            return None
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    data = json.load(f)
+                    sessions = SessionResponse(**data)
+                    return sessions.sessions
+            except json.JSONDecodeError:
+                pass
 
-    def _save_cache(self, cache_file: str, data: NavigationContext):
+        sessions = SessionResponse(sessions=[])
+        for route in context:
+            remaining = count
+            while remaining > 0:
+                count = min(remaining, 50)
+                sessions_response = await self._generate_sessions(route, count)
+                if sessions_response is None:
+                    print(f"No sessions generated for route: {route.id}")
+                    break
+                sessions.sessions.extend(sessions_response.sessions)
+                remaining -= count
+
+        with open(cache_file, "w") as f:
+            json.dump(sessions.model_dump(), f)
+
+        return sessions.sessions
+
+    async def generate_data(self, route_context: str, route_count: int = 10, session_count: int = 100) -> NavigationContext | None:
         os.makedirs(self._config.cache_dir, exist_ok=True)
 
-        json_data = data.model_dump()
-        with open(cache_file, "w") as f:
-            json.dump(json_data, f)
+        routes = await self._get_routes(route_context, route_count)
+        sessions = await self._get_sessions(routes, session_count)
 
-    async def generate_data(
-            self,
-            route_context: str,
-            cache_key: str,
-            route_count: int = 10,
-            session_count: int = 60
-            ) -> NavigationContext | None:
-        cache_file = os.path.join(self._config.cache_dir, f"{cache_key}.json")
-
-        if cached_data := await self._get_cached_data(cache_file):
-            return cached_data
-
-        data = await self._generate_data(route_context, route_count, session_count)
-        if data:
-            self._save_cache(cache_file, data)
+        data = NavigationContext(routes=routes, sessions=sessions)
 
         return data

@@ -1,10 +1,8 @@
-import numpy as np
 from typing import List
 
 from sklearn.svm import NuSVC
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import KNeighborsClassifier
-from sailor.route_vectorizer import RouteContext
 from .route_specs import RouteSpec, SessionSpec
 from .sailor_engine import VectorSailorEngine
 

@@ -1,9 +1,9 @@
 import numpy as np
 from typing import List, Optional
 
-from sailor.route_context import RouteContextResult
+from .route_context import NavigationContext, RouteContextResult
 from .route_vectorizer import RouteVectorizer
-from .route_specs import NavigationContext, RouteSpec, SessionSpec
+from .route_specs import RouteSpec, SessionSpec
 
 class SailorEngine:
   def __init__(self):

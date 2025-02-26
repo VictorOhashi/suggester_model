@@ -1,9 +1,7 @@
-import string
 from typing import Dict, Optional
 from sklearn.calibration import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sailor.route_context import RouteContext
-from .route_specs import NavigationContext
+from .route_context import RouteContext, NavigationContext
 
 class RouteVectorizer:
     def __init__(self, min_df: int = 2, max_df: float = 0.8, max_features: int = 1000):

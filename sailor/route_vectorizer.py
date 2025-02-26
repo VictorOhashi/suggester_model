@@ -1,34 +1,9 @@
 import string
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, Optional
 from sklearn.calibration import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from .route_specs import RouteSpec, SessionSpec, NavigationContext
-
-class RouteContext(BaseModel):
-    id: str = Field(..., description="Route ID")
-    path: str = Field(..., description="Route path")
-    context: str = Field(..., description="Route merged context")
-
-    @classmethod
-    def _from_route_spec(cls, route: RouteSpec) -> 'RouteContext':
-        context: List[str] = []
-
-        for path in route.path.split('/'):
-            if path not in string.punctuation:
-                context.append(path)
-
-        for tag in route.tags:
-            context.append(tag)
-
-        return RouteContext(
-            id=route.id,
-            path=route.path,
-            context=' '.join(context)
-        )
-
-    def _bind_session(self, session: SessionSpec):
-        self.context = f"{self.context} {session.intention.context}"
+from sailor.route_context import RouteContext
+from .route_specs import NavigationContext
 
 class RouteVectorizer:
     def __init__(self, min_df: int = 2, max_df: float = 0.8, max_features: int = 1000):
@@ -42,12 +17,12 @@ class RouteVectorizer:
         routes = []
         sessions_cache = navigation_context.sessions.copy()
         for route in navigation_context.routes:
-            route_context = RouteContext._from_route_spec(route)
+            route_context = RouteContext.from_route_spec(route)
 
             for i, session in enumerate(sessions_cache):
-                if session.route_id == route_context.id:
+                if session.target == route_context.id:
                     sessions_cache.pop(i)
-                    route_context._bind_session(session)
+                    route_context.copy_with_session(session)
 
             self._routes_cache.update({route_context.id: route_context})
             routes.append(route_context)

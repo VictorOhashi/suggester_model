@@ -21,6 +21,14 @@ class SessionSpec(BaseModel):
     last_date: str = Field(..., description="Last date that the route was accessed (yyyy-mm-dd)")
     intention: SessionIntentSpec = Field(..., description="User intention")
 
+    @property
+    def context(self):
+        return self.intention.context
+
+    @property
+    def target(self):
+        return self.route_id
+
 class NavigationContext(BaseModel):
     routes: List[RouteSpec] = Field(..., description="Routes")
     sessions: List[SessionSpec] = Field(..., description="Sessions")

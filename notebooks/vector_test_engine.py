@@ -1,8 +1,8 @@
 import time
 from typing import List, Optional
-import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
-from sklearn.metrics.pairwise import cosine_similarity
 from sailor import VectorSailorEngine, NavigationContext, SessionSpec, RouteGenConfig, SailorDataEngineer
 
 class VectorTestEngine:
@@ -24,45 +24,40 @@ class VectorTestEngine:
 
     self.engine.train(self.route_context.routes, self.train_sessions)
 
-  def _test_query(self, query: str):
+  def _predict_query(self, query: str):
     start_time = time.time()
     results = self.engine.predict(query)
-    latency = (time.time() - start_time)*1000
-    print(f"Results ({latency:.2f}ms):")
+    return results, time.time() - start_time
 
-    for route, score in results[:5]:
-        print(f"- {route.path} (score: {score:.3f})")
+  def evaluate(self):
+    if self.test_sessions is None:
+      raise ValueError("Test sessions not found, run build() first.")
 
-  def test(self):
-    if self.route_context is None:
-      raise ValueError("No route context found")
+    print(f"=== {self.engine.__class__.__name__} ===")
 
+    predicted = []
+    expected = []
+    inference_times = []
     for session in self.test_sessions:
-      for route in self.route_context.routes:
-        if route.id == session.route_id:
-            break
+      query = session.context
+      route_scores, latency = self._predict_query(query)
 
-      query = session.intention.context
-      print(f"Query: '{query}'; Expected route: {route.path};")
-      self._test_query(query)
+      if route := route_scores[0]:
+        predicted.append(route.id)
+        expected.append(session.target)
+        inference_times.append(latency)
 
-  def analyze(self):
-    if self.route_context is None:
-      raise ValueError("No route context found")
+    accuracy = accuracy_score(expected, predicted)
+    print(f"Accuracy: {accuracy:.2f}")
 
-    route_vectors = self.engine.vectorizer.route_vectors
-    if route_vectors is None:
-      raise ValueError("No route vectors found")
+    precision = precision_score(expected, predicted, average="weighted", zero_division=0)
+    print(f"Precision: {precision:.2f}")
 
-    similarity_matrix = cosine_similarity(route_vectors)
-    plt.figure(figsize=(10, 8))
-    plt.imshow(similarity_matrix, cmap="Blues")
-    plt.colorbar(label="Similarity Score")
-    plt.title("Route Similarity Matrix")
+    recall = recall_score(expected, predicted, average="weighted", zero_division=0)
+    print(f"Recall: {recall:.2f}")
 
-    test_routes = [r.path for r in self.route_context.routes if r in self.test_sessions]
+    f1_metric = f1_score(expected, predicted, average="weighted", zero_division=0)
+    print(f"F1-Score: {f1_metric:.2f}")
 
-    plt.xticks(ticks=range(len(test_routes)), labels=test_routes, rotation=90)
-    plt.yticks(ticks=range(len(test_routes)), labels=test_routes)
-
-    plt.show()
+    avg_inference_time = np.mean(inference_times)
+    print(f"Inference time: {avg_inference_time:.4f} s\n")

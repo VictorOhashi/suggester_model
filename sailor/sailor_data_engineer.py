@@ -20,6 +20,15 @@ class RouteGenConfig:
         self.max_tokens = max_tokens
         self.cache_dir = cache_dir
 
+    @classmethod
+    def fromEnv(cls, dir: str = "../build/cache"):
+        return cls(
+            api_key=os.getenv("AI_API_KEY"), # type: ignore
+            model=os.getenv("AI_MODEL"), # type: ignore
+            base_url=os.getenv("AI_MODEL_URL"),
+            cache_dir=dir)
+
+
 class SailorDataEngineer:
     def __init__(self, config: RouteGenConfig):
         self._config = config

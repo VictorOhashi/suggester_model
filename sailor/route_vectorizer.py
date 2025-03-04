@@ -5,7 +5,10 @@ from .route_context import RouteContext, NavigationContext
 
 class RouteVectorizer:
     def __init__(self, min_df: int = 2, max_df: float = 0.8, max_features: int = 1000):
-      self._vectorizer = TfidfVectorizer(max_features=max_features, stop_words='english', min_df=min_df, max_df=max_df)
+      self._vectorizer = TfidfVectorizer(
+          max_features=max_features,
+          min_df=min_df,
+          max_df=max_df)
       self.route_vectors = None
       self.label_encoder = LabelEncoder()
       self.label_encoded = None
@@ -40,3 +43,7 @@ class RouteVectorizer:
     def inverse_transform(self, label: int) -> Optional[RouteContext]:
         route_id = self.label_encoder.inverse_transform([label])[0]
         return self._routes_cache.get(route_id)
+
+    @property
+    def labels(self):
+        return self.label_encoder.classes_

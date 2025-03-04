@@ -1,63 +1,89 @@
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, f1_score, ndcg_score, precision_score, recall_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
-from sailor import VectorSailorEngine, NavigationContext, SessionSpec, RouteGenConfig, SailorDataEngineer
+from sailor import VectorSailorEngine, SessionSpec, SailorDataEngineer
+from sailor.route_context import RouteContextResult
+
+RoutePrediction = List[Tuple[str, List[RouteContextResult]]]
 
 class VectorTestEngine:
-  def __init__(self, engine: VectorSailorEngine, key: str = "vector_test"):
-    _config = RouteGenConfig.fromEnv()
-    self._engineer = SailorDataEngineer(_config, cache_key=key)
+  def __init__(self, engine: VectorSailorEngine, engineer: SailorDataEngineer):
+    self._engineer = engineer
     self.engine = engine
-    self.route_context: Optional[NavigationContext] = None
-    self.train_sessions: List[SessionSpec] = []
-    self.test_sessions: List[SessionSpec] = []
+    self.test_sessions: Optional[List[SessionSpec]] = None
 
-  async def build(self, context: str):
-    _route_context = await self._engineer.generate_data(route_context=context)
-    if _route_context is None:
+  async def build(self) -> None:
+    route_context = await self._engineer.generate_data()
+    if route_context is None:
       raise ValueError("No data generated")
 
-    self.route_context = _route_context
-    self.train_sessions, self.test_sessions = train_test_split(_route_context.sessions, test_size=0.2, random_state=1)
+    train_sessions, self.test_sessions = train_test_split(route_context.sessions, test_size=0.2, random_state=1)
 
-    self.engine.train(self.route_context.routes, self.train_sessions)
+    self.engine.train(route_context.routes, train_sessions)
 
   def _predict_query(self, query: str):
     start_time = time.time()
     results = self.engine.predict(query)
     return results, time.time() - start_time
 
-  def evaluate(self):
+  def evaluate(self, top_k: int = 5):
     if self.test_sessions is None:
       raise ValueError("Test sessions not found, run build() first.")
 
     print(f"=== {self.engine.__class__.__name__} ===")
 
-    predicted = []
-    expected = []
-    inference_times = []
-    for session in self.test_sessions:
-      query = session.context
-      route_scores, latency = self._predict_query(query)
+    prediction: RoutePrediction = []
+    inference_times: List[float] = []
 
-      if route := route_scores[0]:
-        predicted.append(route.id)
-        expected.append(session.target)
-        inference_times.append(latency)
+    for session in self.test_sessions:
+      route_scores, latency = self._predict_query(session.context)
+      prediction.append((session.target, route_scores))
+      inference_times.append(latency)
+
+    self._evaluate_prediction(prediction)
+    self._evaluate_k_prediction(prediction, k=top_k)
+
+    avg_inference_time = np.mean(inference_times)
+    print(f"Inference time: {avg_inference_time:.4f} s\n")
+
+  def _evaluate_prediction(self, prediction: RoutePrediction):
+    expected = [t for (t, _) in prediction]
+    predicted = [routes[0].id for (_, routes) in prediction]
 
     accuracy = accuracy_score(expected, predicted)
     print(f"Accuracy: {accuracy:.2f}")
 
-    precision = precision_score(expected, predicted, average="weighted", zero_division=0)
+    precision = precision_score(expected, predicted, average="weighted")
     print(f"Precision: {precision:.2f}")
 
-    recall = recall_score(expected, predicted, average="weighted", zero_division=0)
+    recall = recall_score(expected, predicted, average="weighted")
     print(f"Recall: {recall:.2f}")
 
-    f1_metric = f1_score(expected, predicted, average="weighted", zero_division=0)
+    f1_metric = f1_score(expected, predicted, average="weighted")
     print(f"F1-Score: {f1_metric:.2f}")
 
-    avg_inference_time = np.mean(inference_times)
-    print(f"Inference time: {avg_inference_time:.4f} s\n")
+  def _evaluate_k_prediction(self, prediction: RoutePrediction, k: int):
+    labels = list(self.engine.vectorizer.labels)
+    expected = [t for (t, _) in prediction]
+    expected = np.array(expected)
+
+    predicted = []
+    for (_, routes) in prediction:
+        route_scores = {route.id: route.score for route in routes}
+        sample_scores = [route_scores.get(label, 0.0) for label in labels]
+        predicted.append(sample_scores)
+    predicted = np.array(predicted)
+
+    top_k_accuracy = top_k_accuracy_score(expected, predicted, k=k, labels=labels)
+    print(f"Top-{k} Accuracy: {top_k_accuracy:.2f}")
+
+    expected_ordened = np.zeros((len(expected), len(labels)))
+    for i, target in enumerate(expected):
+        if target in labels:
+            j = labels.index(target)
+            expected_ordened[i, j] = 1
+
+    ndcg = ndcg_score(expected_ordened, predicted, k=k)
+    print(f"NDCG-{k}: {ndcg:.2f}")

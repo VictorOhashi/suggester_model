@@ -14,9 +14,9 @@ class SailorEngine:
   def predict(self, query: str) -> List[RouteContextResult]: ...
 
 class VectorSailorEngine(SailorEngine):
-  def __init__(self):
+  def __init__(self, vectorizer: RouteVectorizer = RouteVectorizer()):
     super().__init__()
-    self.vectorizer = RouteVectorizer()
+    self.vectorizer = vectorizer
 
   def train(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
     self.train_context = NavigationContext(routes=routes, sessions=sessions)

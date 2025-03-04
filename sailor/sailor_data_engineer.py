@@ -23,7 +23,7 @@ class RouteGenConfig:
         self.cache_dir = cache_dir
 
     @classmethod
-    def fromEnv(cls, dir: str = "../build/cache"):
+    def from_env(cls, dir: str = "../build/cache"):
         return cls(
             api_key=os.getenv("AI_API_KEY"), # type: ignore
             model=os.getenv("AI_MODEL"), # type: ignore
@@ -37,10 +37,11 @@ class SessionResponse(BaseModel):
     sessions: List[SessionSpec]
 
 class SailorDataEngineer:
-    def __init__(self, config: RouteGenConfig, cache_key: str):
+    def __init__(self, config: RouteGenConfig, cache_key: str, route_context: str):
         self._config = config
         self._client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url).beta
         self._cache_key = cache_key
+        self._route_context = route_context
 
     async def _generate_routes(self, context: str, count: int) -> RouteResponse | None:
         system_context = """
@@ -154,10 +155,10 @@ class SailorDataEngineer:
 
         return sessions.sessions
 
-    async def generate_data(self, route_context: str, route_count: int = 10, session_count: int = 100) -> NavigationContext | None:
+    async def generate_data(self, route_count: int = 10, session_count: int = 100) -> NavigationContext | None:
         os.makedirs(self._config.cache_dir, exist_ok=True)
 
-        routes = await self._get_routes(route_context, route_count)
+        routes = await self._get_routes(self._route_context, route_count)
         sessions = await self._get_sessions(routes, session_count)
 
         data = NavigationContext(routes=routes, sessions=sessions)

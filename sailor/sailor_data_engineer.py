@@ -1,6 +1,7 @@
+import asyncio
 import os
 import json
-from typing import List, Optional
+from typing import Awaitable, List, Optional
 from openai import AsyncOpenAI, BaseModel
 
 from sailor.route_specs import RouteSpec, SessionSpec
@@ -92,7 +93,7 @@ class SailorDataEngineer:
 
         return routes.routes
 
-    async def _generate_sessions(self, context: RouteSpec, count: int) -> SessionResponse | None:
+    async def _generate_sessions(self, context: RouteSpec, count: int) -> Optional[SessionResponse]:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the session data, you must follow the following rules:
@@ -138,17 +139,21 @@ class SailorDataEngineer:
             except json.JSONDecodeError:
                 pass
 
-        sessions = SessionResponse(sessions=[])
+        sessions_coroutine: List[Awaitable[Optional[SessionResponse]]] = []
         for route in context:
             remaining = count
             while remaining > 0:
-                count = min(remaining, 50)
-                sessions_response = await self._generate_sessions(route, count)
-                if sessions_response is None:
-                    print(f"No sessions generated for route: {route.id}")
-                    break
-                sessions.sessions.extend(sessions_response.sessions)
-                remaining -= count
+                batch_count = min(remaining, 50)
+                sessions_coroutine.append(self._generate_sessions(route, batch_count))
+                remaining -= batch_count
+
+        sessions = SessionResponse(sessions=[])
+        sessions_responses = await asyncio.gather(*sessions_coroutine, return_exceptions=False)
+        for response in sessions_responses:
+            if response is None:
+                print(f"No sessions generated for route: {route.id}")
+                continue
+            sessions.sessions.extend(response.sessions)
 
         with open(cache_file, "w") as f:
             json.dump(sessions.model_dump(), f)

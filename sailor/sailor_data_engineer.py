@@ -3,6 +3,7 @@ import os
 import json
 from typing import Awaitable, List, Optional
 from openai import AsyncOpenAI, BaseModel
+from openai.types.chat import ChatCompletionMessageParam
 
 from sailor.route_specs import RouteSpec, SessionSpec
 from .route_context import NavigationContext
@@ -56,14 +57,14 @@ class SailorDataEngineer:
 
         user_context = f"Generate {count} routes for a {context}."
 
-        messages = [
+        messages: List[ChatCompletionMessageParam] = [
             {"role": "system", "content": system_context},
             {"role": "user", "content": user_context}
         ]
 
         response = await self._client.chat.completions.parse(
             model=self._config.model,
-            messages=messages, # type: ignore
+            messages=messages,
             temperature=self._config.temperature,
             max_tokens=self._config.max_tokens,
             response_format=RouteResponse

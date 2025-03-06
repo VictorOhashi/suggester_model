@@ -6,7 +6,7 @@ authors = [
     {name = "VictorOhashi",email = "victor.ohashi@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "pydantic (>=2.10.6,<3.0.0)",
     "numpy (>=2.2.2,<3.0.0)",
@@ -15,7 +15,9 @@ dependencies = [
     "scikit-learn (>=1.6.1,<2.0.0)",
     "ipykernel (>=6.29.5,<7.0.0)",
     "python-dotenv (>=1.0.1,<2.0.0)",
-    "matplotlib (>=3.10.0,<4.0.0)"
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "spacy (>=3.8.4,<4.0.0)",
+    "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0.tar.gz"
 ]
 
 

@@ -4,8 +4,7 @@ import json
 from typing import Awaitable, List, Optional
 from openai import AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletionMessageParam
-from sailor.route_context import NavigationContext
-from sailor.route_specs import RouteSpec, SessionSpec
+from sailor import NavigationContext, RouteSpec, SessionSpec
 
 class RouteGenConfig:
     def __init__(self,

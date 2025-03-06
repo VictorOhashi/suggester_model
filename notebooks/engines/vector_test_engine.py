@@ -3,9 +3,9 @@ from typing import List, Optional, Tuple
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, ndcg_score, precision_score, recall_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
-from notebooks.sailor_data_engineer import SailorDataEngineer
+from notebooks.engines.sailor_data_engineer import SailorDataEngineer
 from sailor import VectorSailorEngine, SessionSpec
-from sailor.route_context import RouteContextResult
+from sailor.types import RouteContextResult
 
 RoutePrediction = List[Tuple[str, List[RouteContextResult]]]
 
@@ -20,7 +20,7 @@ class VectorTestEngine:
     if route_context is None:
       raise ValueError("No data generated")
 
-    train_sessions, self.test_sessions = train_test_split(route_context.sessions, test_size=0.2, random_state=1)
+    train_sessions, self.test_sessions = train_test_split(route_context.sessions, test_size=0.2, random_state=14)
 
     self.engine.train(route_context.routes, train_sessions)
 
@@ -66,7 +66,7 @@ class VectorTestEngine:
     print(f"F1-Score: {f1_metric:.2f}")
 
   def _evaluate_k_prediction(self, prediction: RoutePrediction, k: int):
-    labels = list(self.engine.vectorizer.labels)
+    labels = list(self.engine.documentor.labels)
     expected = [t for (t, _) in prediction]
     expected = np.array(expected)
 

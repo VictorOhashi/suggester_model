@@ -2,7 +2,6 @@
 Search Suggestion: AI-powered search suggestion.
 """
 
-from .sailor_data_engineer import SailorDataEngineer, RouteGenConfig
 from .sailor_engine import VectorSailorEngine
 from .vector_sailor_engine import TfidfSailorEngine, SVCSailorEngine, KNNSailorEngine
 from .route_context import NavigationContext
@@ -14,8 +13,6 @@ __all__ = [
     "RouteSpec",
     "SessionSpec",
     "NavigationContext",
-    "SailorDataEngineer",
-    "RouteGenConfig",
     "VectorSailorEngine",
     "TfidfSailorEngine",
     "SVCSailorEngine",

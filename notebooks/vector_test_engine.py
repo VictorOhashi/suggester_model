@@ -3,7 +3,8 @@ from typing import List, Optional, Tuple
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, ndcg_score, precision_score, recall_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
-from sailor import VectorSailorEngine, SessionSpec, SailorDataEngineer
+from notebooks.sailor_data_engineer import SailorDataEngineer
+from sailor import VectorSailorEngine, SessionSpec
 from sailor.route_context import RouteContextResult
 
 RoutePrediction = List[Tuple[str, List[RouteContextResult]]]
@@ -15,7 +16,7 @@ class VectorTestEngine:
     self.test_sessions: Optional[List[SessionSpec]] = None
 
   async def build(self) -> None:
-    route_context = await self._engineer.generate_data()
+    route_context = await self._engineer.generate_data(route_count=20, session_count=100)
     if route_context is None:
       raise ValueError("No data generated")
 

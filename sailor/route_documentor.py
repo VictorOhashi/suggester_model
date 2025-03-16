@@ -11,9 +11,13 @@ class RouteDocumentor:
         self.label_encoder = LabelEncoder()
 
         self._routes: Dict[str, RouteContext] = self._prepare(navigation_context)
+        self._labels = list(self._routes.keys())
 
-        self.labels = list(self._routes.keys())
         self.documents = [r.context for r in self._routes.values()]
+
+    @property
+    def labels_(self):
+        return self.label_encoder.classes_
 
     def _prepare(self, navigation_context: NavigationContext):
         sessions = navigation_context.sessions.copy()
@@ -42,9 +46,9 @@ class RouteDocumentor:
 
         return RouteContext(id=route.id, path=route.path, context=" ".join(context))
 
-    def fit(self):
-         labels = self.label_encoder.fit_transform(self.labels)
-         return labels, self.label_encoder.classes_
+    def fit_transform(self):
+         labels = self.label_encoder.fit_transform(self._labels)
+         return labels, self.labels_
 
     def inverse_transform(self, label: int) -> Optional[RouteContext]:
         route_id = self.label_encoder.inverse_transform([label])[0]

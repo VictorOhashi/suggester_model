@@ -66,7 +66,7 @@ class VectorTestEngine:
     print(f"F1-Score: {f1_metric:.2f}")
 
   def _evaluate_k_prediction(self, prediction: RoutePrediction, k: int):
-    labels = list(self.engine.documentor.labels)
+    labels = list(self.engine.documentor.labels_)
     expected = [t for (t, _) in prediction]
     expected = np.array(expected)
 

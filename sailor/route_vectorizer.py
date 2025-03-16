@@ -9,11 +9,11 @@ class RouteVectorizer:
 
 class TfidfRouteVectorizer(RouteVectorizer):
   def __init__(self):
-    super().__init__()
-    self._vectorizer = TfidfVectorizer(max_features=1000, min_df=1, max_df=0.8)
+      super().__init__()
+      self._vectorizer = TfidfVectorizer(max_features=1000, min_df=1, max_df=0.8)
 
   def fit_transform(self, documents: List[str]):
-    return self._vectorizer.fit_transform(documents)
+      return self._vectorizer.fit_transform(documents)
 
   def transform(self, query: str):
-    return self._vectorizer.transform([query])
+      return self._vectorizer.transform([query])

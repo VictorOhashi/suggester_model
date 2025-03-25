@@ -1,8 +1,8 @@
 import os
 import pickle
 import asyncio
-from notebooks.engines.sailor_data_engineer import RouteGenConfig, SailorDataEngineer
-from sailor.vector_sailor_engine import SVCSailorEngine, KNNSailorEngine
+from sailor.sailor_data_engineer import RouteGenConfig, SailorDataEngineer
+from sailor.sailor_engine import SVCSailorEngine, KNNSailorEngine
 from sailor.route_vectorizer import TfidfRouteVectorizer
 
 async def train():

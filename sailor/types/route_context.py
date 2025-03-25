@@ -1,10 +1,4 @@
-from typing import List
 from pydantic import BaseModel, Field
-from .route_specs import RouteSpec, SessionSpec
-
-class NavigationContext(BaseModel):
-    routes: List[RouteSpec] = Field(..., description="Routes")
-    sessions: List[SessionSpec] = Field(..., description="Sessions")
 
 class RouteContext(BaseModel):
     id: str = Field(..., description="Route ID")

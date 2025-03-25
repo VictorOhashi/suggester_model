@@ -3,29 +3,37 @@ import string
 import numpy as np
 from typing import Dict, List, Optional
 from sklearn.preprocessing import LabelEncoder
-
-from sailor.types import RouteSpec, SessionSpec, NavigationContext, RouteContext
+from sailor.types import RouteSpec, SessionSpec, RouteContext
 
 class RouteDocumentor:
-    def __init__(self, navigation_context: NavigationContext):
+    def __init__(self):
+        self._label_encoder = LabelEncoder()
         self._tokenizer = spacy.load("en_core_web_lg")
-        self.label_encoder = LabelEncoder()
-
-        self._routes: Dict[str, RouteContext] = self._prepare(navigation_context)
-        self._labels = list(self._routes.keys())
-
-        self.documents = [r.context for r in self._routes.values()]
+        self._routes: Dict[str, RouteContext]
 
     @property
     def labels_(self):
-        return self.label_encoder.classes_
+        return self._label_encoder.classes_
 
-    def _prepare(self, navigation_context: NavigationContext):
-        sessions = navigation_context.sessions.copy()
-        routes = [self._prepare_route(r, sessions) for r in navigation_context.routes]
-        return {r.id: r for r in routes}
+    @property
+    def labels(self):
+        return list(self._routes.keys())
 
-    def _prepare_route(self, route: RouteSpec, sessions: List[SessionSpec]) -> RouteContext:
+    @property
+    def documents(self):
+        return [r.context for r in self._routes.values()]
+
+    def fit_transform(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
+        self._fit(routes, sessions)
+        labels = self._label_encoder.fit_transform(self.labels)
+        return np.array(labels)
+
+    def _fit(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
+        sessions = sessions.copy()
+        parsed_routes = [self._parse_route(r, sessions) for r in routes]
+        self._routes = {r.id: r for r in parsed_routes}
+
+    def _parse_route(self, route: RouteSpec, sessions: List[SessionSpec]) -> RouteContext:
         context: List[str] = []
 
         for path in route.path.split('/'):
@@ -48,12 +56,8 @@ class RouteDocumentor:
         return RouteContext(id=route.id, path=route.path, context=" ".join(context))
 
     def transform(self, labels: list[str]):
-        return self.label_encoder.transform(labels)
-
-    def fit_transform(self):
-         labels = self.label_encoder.fit_transform(self._labels)
-         return np.array(labels)
+        return self._label_encoder.transform(labels)
 
     def inverse_transform(self, label: int) -> Optional[RouteContext]:
-        route_id = self.label_encoder.inverse_transform([label])[0]
+        route_id = self._label_encoder.inverse_transform([label])[0]
         return self._routes.get(route_id)

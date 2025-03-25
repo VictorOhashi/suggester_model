@@ -3,14 +3,14 @@ from typing import List, Optional, Tuple
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, ndcg_score, precision_score, recall_score, top_k_accuracy_score
 from sklearn.model_selection import train_test_split
-from notebooks.engines.sailor_data_engineer import SailorDataEngineer
-from sailor import VectorSailorEngine, SessionSpec
+from sailor.sailor_data_engineer import SailorDataEngineer
+from sailor import SailorEngine, SessionSpec
 from sailor.types import RouteContextResult
 
 RoutePrediction = List[Tuple[str, List[RouteContextResult]]]
 
 class VectorTestEngine:
-  def __init__(self, engine: VectorSailorEngine, engineer: SailorDataEngineer):
+  def __init__(self, engine: SailorEngine, engineer: SailorDataEngineer):
       self._engineer = engineer
       self.engine = engine
       self.test_sessions: Optional[List[SessionSpec]] = None

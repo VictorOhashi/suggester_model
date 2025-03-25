@@ -1,7 +1,8 @@
 import spacy
 import string
+import numpy as np
 from typing import Dict, List, Optional
-from sklearn.calibration import LabelEncoder
+from sklearn.preprocessing import LabelEncoder
 
 from sailor.types import RouteSpec, SessionSpec, NavigationContext, RouteContext
 
@@ -46,9 +47,12 @@ class RouteDocumentor:
 
         return RouteContext(id=route.id, path=route.path, context=" ".join(context))
 
+    def transform(self, labels: list[str]):
+        return self.label_encoder.transform(labels)
+
     def fit_transform(self):
          labels = self.label_encoder.fit_transform(self._labels)
-         return labels, self.labels_
+         return np.array(labels)
 
     def inverse_transform(self, label: int) -> Optional[RouteContext]:
         route_id = self.label_encoder.inverse_transform([label])[0]

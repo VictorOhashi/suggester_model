@@ -15,8 +15,8 @@ class VectorTestEngine:
       self.engine = engine
       self.test_sessions: Optional[List[SessionSpec]] = None
 
-  async def build(self) -> None:
-      route_context = await self._engineer.generate_data(route_count=20, session_count=100)
+  async def build(self, route_count=20, session_count=100) -> None:
+      route_context = await self._engineer.generate_data(route_count, session_count)
       if route_context is None:
         raise ValueError("No data generated")
 

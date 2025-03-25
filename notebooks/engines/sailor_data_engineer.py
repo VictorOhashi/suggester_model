@@ -74,9 +74,8 @@ class SailorDataEngineer:
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, "r") as f:
-                    data = json.load(f)
-                    routes = RouteResponse(**data)
-                    return routes.routes
+                    data = RouteResponse(**json.load(f))
+                    return data.routes
             except json.JSONDecodeError:
                 pass
 
@@ -128,9 +127,8 @@ class SailorDataEngineer:
         if os.path.exists(cache_file):
             try:
                 with open(cache_file, "r") as f:
-                    data = json.load(f)
-                    sessions = SessionResponse(**data)
-                    return sessions.sessions
+                    data = SessionResponse(**json.load(f))
+                    return data.sessions
             except json.JSONDecodeError:
                 pass
 

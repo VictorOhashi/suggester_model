@@ -18,7 +18,7 @@ class VectorSailorEngine(SailorEngine):
       self.train_context = NavigationContext(routes=routes, sessions=sessions)
       self.documentor = RouteDocumentor(self.train_context)
 
-      labels, _ = self.documentor.fit_transform()
+      labels = self.documentor.fit_transform()
       vectors = self._vectorizer.fit_transform(self.documentor.documents)
 
       return vectors, labels

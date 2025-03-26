@@ -133,7 +133,7 @@ class SailorDataWarehouse:
         cursor = self.db.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS routes_registry (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 context_id INTEGER NOT NULL,
                 path TEXT NOT NULL,
                 tags TEXT NOT NULL,
@@ -151,17 +151,17 @@ class SailorDataWarehouse:
 
     async def _get_routes(self, context_id: str) -> List[RouteSpec]:
         cursor = self.db.cursor()
-        cursor.execute('SELECT * FROM routes_registry WHERE context_id = ?', (context_id,))
+        cursor.execute('SELECT id, path, tags FROM routes_registry WHERE context_id = ?', (context_id,))
+
         routes_data = cursor.fetchall()
-        if not routes_data:
-            return []
+        if not routes_data: return []
 
         routes = []
         for route_data in routes_data:
             route = RouteSpec(
-                id=route_data["id"],
-                path=route_data["path"],
-                tags=route_data["tags"].split(',')
+                id=route_data[0],
+                path=route_data[1],
+                tags=route_data[2].split(',')
             )
             routes.append(route)
 
@@ -179,7 +179,7 @@ class SailorDataWarehouse:
         cursor = self.db.cursor()
         for route in routes:
             route_id = uuid.uuid4()
-            input = (route_id, context_hash, route.path, ','.join(route.tags))
+            input = (route_id.hex, context_hash, route.path, ','.join(route.tags))
             cursor.execute("INSERT INTO routes_registry (id, context_id, path, tags) VALUES (?, ?, ?, ?)", input)
 
         self.db.commit()
@@ -187,5 +187,29 @@ class SailorDataWarehouse:
         routes = await self._get_routes(context_hash)
         return routes
 
+    async def _get_sessions(self, route_id: str) -> List[SessionSpec]:
+        cursor = self.db.cursor()
+        cursor.execute('SELECT id, intention_context FROM sessions_registry WHERE route_id = ?', (route_id,))
 
+        sessions_data = cursor.fetchall()
+        if not sessions_data: return []
 
+        sessions = []
+        for session_data in sessions_data:
+            session = SessionSpec(
+                id=session_data[0],
+                route_id=route_id,
+                context=session_data[1]
+            )
+            sessions.append(session)
+
+        return sessions
+
+    async def create_sessions(self, route: RouteSpec, count: int = 10, force_new: bool = False) -> List[SessionSpec]:
+        if not force_new:
+            sessions = await self._get_sessions(route.id)
+            if sessions: return sessions
+
+        sessions = await self.enginner.generate_sessions([route], count=count)
+
+        return sessions

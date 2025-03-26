@@ -79,15 +79,15 @@ class SailorDataEngineer:
                 sessions_coroutine.append(wrapped_generate(route, batch_count))
                 remaining -= batch_count
 
-        sessions = SessionResponse(sessions=[])
+        sessions: List[SessionSpec] = []
         sessions_responses = await asyncio.gather(*sessions_coroutine, return_exceptions=False)
         for response in sessions_responses:
             if response is None:
                 print(f"No sessions generated for route: {route.id}")
                 continue
-            sessions.sessions.extend(response.sessions)
+            sessions.extend(response.sessions)
 
-        return sessions.sessions
+        return sessions
 
     async def _generate_sessions(self, context: RouteSpec, count: int) -> Optional[SessionResponse]:
         system_context = """
@@ -205,7 +205,7 @@ class SailorDataWarehouse:
 
         return sessions
 
-    async def create_sessions(self, route: RouteSpec, count: int = 10, force_new: bool = False) -> List[SessionSpec]:
+    async def create_route_sessions(self, route: RouteSpec, count: int = 10, force_new: bool = False) -> List[SessionSpec]:
         if not force_new:
             sessions = await self._get_sessions(route.id)
             if sessions: return sessions

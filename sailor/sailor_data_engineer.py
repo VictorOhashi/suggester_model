@@ -3,10 +3,14 @@ import os
 import sqlite3
 import hashlib
 import uuid
-from typing import Awaitable, List, Optional
-from openai import AsyncOpenAI
+from typing import AsyncGenerator, Awaitable, List, Optional
+from openai import AsyncOpenAI, RateLimitError
 from openai.types.chat import ChatCompletionMessageParam
 from sailor.types import RouteSpec, SessionSpec, RouteResponse, SessionResponse
+
+_rate_limit_timeout = 60
+_max_sessions_per_fetch = 50
+_max_semaphore = 5
 
 class RouteGenConfig:
     def __init__(self,
@@ -28,11 +32,15 @@ class RouteGenConfig:
             base_url=os.getenv("AI_MODEL_URL"))
 
 class SailorDataEngineer:
-    def __init__(self, config: RouteGenConfig):
+    def __init__(self, config: RouteGenConfig, verbose: bool = False):
+        self._verbose = verbose
         self._config = config
         self._client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url).beta
+        self._fetch_semaphore = asyncio.Semaphore(_max_semaphore)
 
     async def generate_routes(self, context: str, count: int) -> List[RouteSpec]:
+        if self._verbose: print("[GENERATE_ROUTE] Generating", count, "routes for context:", context)
+
         routes = await self._generate_routes(context, count)
         if routes is None:
             raise ValueError("No routes generated")
@@ -56,6 +64,7 @@ class SailorDataEngineer:
             {"role": "user", "content": user_context}
         ]
 
+        if self._verbose: print("[GENERATE_ROUTE] Generating routes for context:", context)
         response = await self._client.chat.completions.parse(
             model=self._config.model,
             messages=messages,
@@ -65,41 +74,32 @@ class SailorDataEngineer:
 
         return response.choices[0].message.parsed
 
-    async def generate_sessions(self, context: List[RouteSpec], count: int) -> List[SessionSpec]:
-        sessions_semaphore = asyncio.Semaphore(5)
-        async def wrapped_generate(route: RouteSpec, batch_count: int) -> Optional[SessionResponse]:
-            async with sessions_semaphore:
-                return await self._generate_sessions(route, batch_count)
+    async def generate_sessions(self, context: RouteSpec, count: int) -> AsyncGenerator[List[SessionSpec], None]:
+        if self._verbose: print("[GENERATE_SESSION] Generating", count, "sessions for route:", context.id)
 
-        sessions_coroutine: List[Awaitable[Optional[SessionResponse]]] = []
-        for route in context:
-            remaining = count
-            while remaining > 0:
-                batch_count = min(remaining, 50)
-                sessions_coroutine.append(wrapped_generate(route, batch_count))
+        remaining = count
+        while remaining > 0:
+            try:
+                batch_count = min(remaining, _max_sessions_per_fetch)
+                async with self._fetch_semaphore:
+                    response = await self._generate_sessions(context, batch_count)
+                if response: yield response.sessions
                 remaining -= batch_count
-
-        sessions: List[SessionSpec] = []
-        sessions_responses = await asyncio.gather(*sessions_coroutine, return_exceptions=False)
-        for response in sessions_responses:
-            if response is None:
-                print(f"No sessions generated for route: {route.id}")
-                continue
-            sessions.extend(response.sessions)
-
-        return sessions
+            except RateLimitError:
+                if self._verbose: print("[GENERATE_SESSION] Rate limit reached. Pausing for 1 minute...")
+                async with self._fetch_semaphore:
+                    await asyncio.sleep(_rate_limit_timeout)
 
     async def _generate_sessions(self, context: RouteSpec, count: int) -> Optional[SessionResponse]:
         system_context = """
             Act as a UX data synthesis specialist for complex administrative systems.
             To generate the session data, you must follow the following rules:
             - Each session must have a unique id and reference to the route id.
-            - Each session must have an intention with a type and a context.
+            - Each session must have a context.
             - Each route can have multiple sessions.
-            To generate the intention data, you must follow the following rules:
-            - The intention type must be one of the following: "search", "navigation".
-            - If the intention type is "search", the context should mock a user search intention based on that route.
-            - If the intention type is "navigation", the context should mock a user action of navigation. Like clicking on a link or a button.
+            To generate the context data, you must follow the following rules:
+            - The context should mock a user search intention based on that route.
+            - Introduce variations in 25% of the contexts, including typo errors, synonyms, or related keywords.
         """
 
         user_context = (
@@ -112,6 +112,7 @@ class SailorDataEngineer:
             {"role": "user", "content": user_context}
         ]
 
+        if self._verbose: print("[GENERATE_SESSION] Generating sessions for route:", context.id)
         response = await self._client.chat.completions.parse(
             model=self._config.model,
             messages=messages,
@@ -122,8 +123,9 @@ class SailorDataEngineer:
         return response.choices[0].message.parsed
 
 class SailorDataWarehouse:
-    def __init__(self, config: RouteGenConfig, db_path: str):
-        self.enginner = SailorDataEngineer(config)
+    def __init__(self, config: RouteGenConfig, db_path: str, verbose: bool = False):
+        self._verbose = verbose
+        self.enginner = SailorDataEngineer(config, verbose=verbose)
 
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db = sqlite3.connect(db_path)
@@ -149,9 +151,16 @@ class SailorDataWarehouse:
         ''')
         self.db.commit()
 
-    async def _get_routes(self, context_id: str) -> List[RouteSpec]:
+    async def _get_routes(self, context_id: str, count: int) -> List[RouteSpec]:
+        if self._verbose: print("[QUERY_ROUTE] Getting routes for context:", context_id)
+
         cursor = self.db.cursor()
-        cursor.execute('SELECT id, path, tags FROM routes_registry WHERE context_id = ?', (context_id,))
+        query = 'SELECT id, path, tags FROM routes_registry WHERE context_id = ?'
+        params = (context_id,)
+        if count:
+            query += ' LIMIT ?'
+            params += (count,)
+        cursor.execute(query, params)
 
         routes_data = cursor.fetchall()
         if not routes_data: return []
@@ -165,15 +174,18 @@ class SailorDataWarehouse:
             )
             routes.append(route)
 
+        if self._verbose: print("[QUERY_ROUTE] Found routes:", len(routes), "for context:", context_id)
+
         return routes
 
-    async def create_routes(self, context: str, count: int = 10, force_new: bool = False) -> List[RouteSpec]:
+    async def create_routes(self, context: str, count: int, force_new: bool = False) -> List[RouteSpec]:
         context_hash = hashlib.sha256(context.encode()).hexdigest()
-
+        routes = []
         if not force_new:
-            routes = await self._get_routes(context_hash)
-            if routes: return routes
+            routes = await self._get_routes(context_hash, count)
+            if routes and len(routes) >= count: return routes
 
+        count -= len(routes)
         routes = await self.enginner.generate_routes(context, count=count)
 
         cursor = self.db.cursor()
@@ -184,12 +196,19 @@ class SailorDataWarehouse:
 
         self.db.commit()
 
-        routes = await self._get_routes(context_hash)
+        routes = await self._get_routes(context_hash, count)
         return routes
 
-    async def _get_sessions(self, route_id: str) -> List[SessionSpec]:
+    async def _get_sessions(self, route_id: str, count: Optional[int] = None) -> List[SessionSpec]:
+        if self._verbose: print("[QUERY_SESSION] Getting sessions for route:", route_id)
+
         cursor = self.db.cursor()
-        cursor.execute('SELECT id, intention_context FROM sessions_registry WHERE route_id = ?', (route_id,))
+        query = 'SELECT id, intention_context FROM sessions_registry WHERE route_id = ?'
+        params = (route_id,)
+        if count:
+            query += ' LIMIT ?'
+            params += (count,)
+        cursor.execute(query, params)
 
         sessions_data = cursor.fetchall()
         if not sessions_data: return []
@@ -203,13 +222,31 @@ class SailorDataWarehouse:
             )
             sessions.append(session)
 
+        if self._verbose: print("[QUERY_SESSION] Found sessions:", len(sessions), "for route:", route_id)
+
         return sessions
 
-    async def create_route_sessions(self, route: RouteSpec, count: int = 10, force_new: bool = False) -> List[SessionSpec]:
+    async def create_route_sessions(self, route: RouteSpec, count: int, force_new: bool = False) -> List[SessionSpec]:
         if not force_new:
-            sessions = await self._get_sessions(route.id)
-            if sessions: return sessions
+            cache = await self._get_sessions(route.id)
+            if cache and len(cache) >= count: return cache
 
-        sessions = await self.enginner.generate_sessions([route], count=count)
+        count -= len(cache)
+        cursor = self.db.cursor()
+        async for session_batch in self.enginner.generate_sessions(route, count=count):
+            for session in session_batch:
+                session_id = uuid.uuid4()
+                input = (session_id.hex, route.id, session.context)
+                cursor.execute("INSERT INTO sessions_registry (id, route_id, intention_context) VALUES (?, ?, ?)", input)
+            self.db.commit()
 
+        sessions = await self._get_sessions(route.id)
         return sessions
+
+    async def create_sessions(self, routes: List[RouteSpec], count: int, force_new: bool = False) -> List[List[SessionSpec]]:
+        coroutine: List[Awaitable[List[SessionSpec]]] = []
+        for route in routes:
+            coroutine.append(self.create_route_sessions(route, count, force_new=force_new))
+
+        responses = await asyncio.gather(*coroutine, return_exceptions=False)
+        return responses

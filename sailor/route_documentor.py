@@ -16,16 +16,13 @@ class RouteDocumentor:
         return self._label_encoder.classes_
 
     @property
-    def labels(self):
-        return list(self._routes.keys())
-
-    @property
     def documents(self):
         return [r.context for r in self._routes.values()]
 
     def fit_transform(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
         self._fit(routes, sessions)
-        labels = self._label_encoder.fit_transform(self.labels)
+        route_labels = list(self._routes.keys())
+        labels = self._label_encoder.fit_transform(route_labels)
         return np.array(labels)
 
     def _fit(self, routes: List[RouteSpec], sessions: List[SessionSpec]):

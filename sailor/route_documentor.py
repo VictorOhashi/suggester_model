@@ -19,6 +19,12 @@ class RouteDocumentor:
     def documents(self):
         return [r.context for r in self._routes.values()]
 
+    def get_route(self, route_id: str) -> RouteContext:
+        route = self._routes.get(route_id)
+        if route is None:
+            raise ValueError(f"Route with id {route_id} not found.")
+        return route
+
     def fit_transform(self, routes: List[RouteSpec], sessions: List[SessionSpec]):
         self._fit(routes, sessions)
         route_labels = list(self._routes.keys())
@@ -55,6 +61,6 @@ class RouteDocumentor:
     def transform(self, labels: list[str]):
         return self._label_encoder.transform(labels)
 
-    def inverse_transform(self, label: int) -> Optional[RouteContext]:
+    def inverse_transform(self, label: int) -> RouteContext:
         route_id = self._label_encoder.inverse_transform([label])[0]
-        return self._routes.get(route_id)
+        return self.get_route(route_id)

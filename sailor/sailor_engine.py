@@ -1,3 +1,5 @@
+import os
+import pickle
 import numpy as np
 from typing import List
 from sklearn.pipeline import Pipeline
@@ -21,10 +23,14 @@ class SailorEngine:
 
     def validate(self, sessions: List[SessionSpec]):
         test_queries = [s.context for s in sessions]
-        _predictions = self.pipeline.predict(test_queries)
+        predictions = self.pipeline.predict(test_queries)
 
-        _targets = self.documentor.transform([s.target for s in sessions])
-        return classification_report(_targets, _predictions, target_names=self.documentor.labels_)
+        targets = self.documentor.transform([s.target for s in sessions])
+        target_names = [
+            self.documentor.get_route(id).path
+            for id in self.documentor.labels_
+        ]
+        return classification_report(targets, predictions, target_names=target_names)
 
     def scored_routes(self, scores) -> List[RouteContextResult]:
         sorted_index = np.argsort(scores)[::-1]
@@ -35,6 +41,14 @@ class SailorEngine:
                 route = route.copy_with_score(float(scores[i]))
                 scored_routes.append(route)
         return scored_routes
+
+    def save_model(self, model_name: str, model_dir: str):
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir)
+        model_path = os.path.join(model_dir, f"{model_name}.pkl")
+        with open(model_path, 'wb') as f:
+            pickle.dump(self, f)
+
 
 class SVCSailorEngine(SailorEngine):
     def __init__(self):

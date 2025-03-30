@@ -28,5 +28,4 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-run = "api.main:run"
-train = "scripts.train_model:run"
+start = "api.main:run"

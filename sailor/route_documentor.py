@@ -1,7 +1,7 @@
 import spacy
 import string
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List
 from sklearn.preprocessing import LabelEncoder
 from sailor.types import RouteSpec, SessionSpec, RouteContext
 

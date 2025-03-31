@@ -123,11 +123,17 @@ class SailorDataEngineer:
         return response.choices[0].message.parsed
 
 class SailorDataWarehouse:
-    def __init__(self, config: RouteGenConfig, db_path: str, verbose: bool = False):
+    def __init__(self, config: RouteGenConfig, context: str, db_path: str, verbose: bool = False):
         self._verbose = verbose
         self.enginner = SailorDataEngineer(config, verbose=verbose)
 
+        context_hash = hashlib.md5(context.encode()).hexdigest()
+        self.context = context
+        self.context_hash = context_hash
+
+        db_path = os.path.join(db_path, f"{context_hash}.db")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
         self.db = sqlite3.connect(db_path)
         self._init()
 
@@ -178,25 +184,24 @@ class SailorDataWarehouse:
 
         return routes
 
-    async def create_routes(self, context: str, count: int, force_new: bool = False) -> List[RouteSpec]:
-        context_hash = hashlib.sha256(context.encode()).hexdigest()
+    async def create_routes(self, count: int, force_new: bool = False) -> List[RouteSpec]:
         routes = []
         if not force_new:
-            routes = await self._get_routes(context_hash, count)
+            routes = await self._get_routes(self.context_hash, count)
             if routes and len(routes) >= count: return routes
 
         count -= len(routes)
-        routes = await self.enginner.generate_routes(context, count=count)
+        routes = await self.enginner.generate_routes(self.context, count=count)
 
         cursor = self.db.cursor()
         for route in routes:
             route_id = uuid.uuid4()
-            input = (route_id.hex, context_hash, route.path, ','.join(route.tags))
+            input = (route_id.hex, self.context_hash, route.path, ','.join(route.tags))
             cursor.execute("INSERT INTO routes_registry (id, context_id, path, tags) VALUES (?, ?, ?, ?)", input)
 
         self.db.commit()
 
-        routes = await self._get_routes(context_hash, count)
+        routes = await self._get_routes(self.context_hash, count)
         return routes
 
     async def _get_sessions(self, route_id: str, count: Optional[int] = None) -> List[SessionSpec]:
@@ -228,7 +233,7 @@ class SailorDataWarehouse:
 
     async def create_route_sessions(self, route: RouteSpec, count: int, force_new: bool = False) -> List[SessionSpec]:
         if not force_new:
-            cache = await self._get_sessions(route.id)
+            cache = await self._get_sessions(route.id, count)
             if cache and len(cache) >= count: return cache
 
         count -= len(cache)
@@ -240,7 +245,7 @@ class SailorDataWarehouse:
                 cursor.execute("INSERT INTO sessions_registry (id, route_id, intention_context) VALUES (?, ?, ?)", input)
             self.db.commit()
 
-        sessions = await self._get_sessions(route.id)
+        sessions = await self._get_sessions(route.id, count)
         return sessions
 
     async def create_sessions(self, routes: List[RouteSpec], count: int, force_new: bool = False) -> List[List[SessionSpec]]:

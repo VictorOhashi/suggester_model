@@ -25,14 +25,15 @@ class SailorEngine(ABC):
     def predict(self, query: str) -> List[RouteContextResult]: ...
 
     def scored_routes(self, scores) -> List[RouteContextResult]:
-        sorted_index = np.argsort(scores)[::-1]
+        top_indices = np.argpartition(-scores, len(scores) - 1)
         scored_routes: List[RouteContextResult] = []
-        for i in sorted_index:
+        for i in top_indices:
             route = self.documentor.inverse_transform(i)
             if route is not None:
                 score = float(scores[i])
                 route = route.copy_with_score(score)
                 scored_routes.append(route)
+        scored_routes.sort(key=lambda x: x.score, reverse=True)
         return scored_routes
 
     def save_model(self, model_name: str, model_dir: str):

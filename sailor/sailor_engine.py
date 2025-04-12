@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import os
 import pickle
 import numpy as np
@@ -10,7 +11,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from .route_documentor import RouteDocumentor
 from .types import  RouteSpec, SessionSpec, RouteContextResult
 
-class SailorEngine:
+class SailorEngine(ABC):
     def __init__(self):
         super().__init__()
         self.documentor = RouteDocumentor()
@@ -20,7 +21,8 @@ class SailorEngine:
         labels = self.documentor.fit_transform(routes, sessions)
         return self.pipeline.fit(self.documentor.documents, labels)
 
-    def predict(self, query: str): ...
+    @abstractmethod
+    def predict(self, query: str) -> List[RouteContextResult]: ...
 
     def scored_routes(self, scores) -> List[RouteContextResult]:
         sorted_index = np.argsort(scores)[::-1]
